@@ -13,10 +13,18 @@ open Std.Internal.Parsec.String
 def isSymbol (c : Char) : Bool :=
   Option.isSome (("!#$%&|*+-/:<=>?@^_~".toList).find? (· == c))
 def symbol : Parser Char := satisfy isSymbol
+def consumeWs : Parser Char := satisfy $ fun c => Option.isSome (" \n▸→".toList.find? (· == c))
+def wsSymbol : Parser Char :=
+  /- many1 consumeWs >>= fun _ => symbol -/
+  do
+    /- let _ ← ws  -- note: `many1 ws` loops infinitely since `ws` skips and always succeeds -/
+    let _ ← many1 consumeWs
+    let c ← symbol
+    pure c
 
 /- Run a parser on the input, report on matches -/
 def readExpr : String → String := fun input =>
-  let result := Parser.run symbol input
+  let result := Parser.run wsSymbol input
   match result with
   | Except.ok c => s!"Found match: {c}"
   | Except.error e => s!"No match: {e}"
