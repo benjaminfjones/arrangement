@@ -1,0 +1,10 @@
+name = "arrangement"
+version = "0.1.0"
+defaultTargets = ["arrangement"]
+
+[[lean_lib]]
+name = "Arrangement"
+
+[[lean_exe]]
+name = "arrangement"
+root = "Main"
