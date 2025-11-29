@@ -14,6 +14,7 @@ inductive LispVal where
   | dottedList : List LispVal → LispVal → LispVal  -- (a b . c)
   | number : Nat → LispVal                         -- 6
   | string : String → LispVal                      -- "foo"
+  | char : Char → LispVal                          -- #\a #\space #\newline
   | bool : Bool → LispVal                          -- true
 
 
@@ -35,6 +36,18 @@ def wsSymbol : Parser Char :=
   many1 consumeWs >>= fun _ => symbol
   /- let _ ← ws  -- note: `many1 ws` loops infinitely since `ws` skips and always succeeds -/
 
+def parseSpaceChar : Parser Char := do
+  pstring "#\\space" >>= fun _ => pure ' '
+def parseNewlineChar : Parser Char := do
+  pstring "#\\newline" >>= fun _ => pure '\n'
+def parseOtherChar : Parser Char := do
+  pstring "#\\" >>= fun _ => asciiLetter
+/- Parse a character literal, e.g. #\a or #\space -/
+def parseChar : Parser LispVal := do
+  let c ← parseSpaceChar <|> parseNewlineChar <|> parseOtherChar
+  pure $ LispVal.char c
+
+/- Parser a string literal; escaped quotes are supported -/
 def parseString : Parser LispVal := do
   let _ ← satisfy (· == '"')
   let nonQuote := satisfy (· != '"')
@@ -66,7 +79,7 @@ def parseNumber : Parser LispVal := do
   | some n => pure (LispVal.number n)
   | none => fail "could not parse a number"
 
-def parseExpr : Parser LispVal := parseAtom <|> parseString <|> parseNumber
+def parseExpr : Parser LispVal := parseChar <|> parseAtom <|> parseString <|> parseNumber
 
 /- Run a parser on the input, report on matches -/
 def readExpr : String → String := fun input =>
