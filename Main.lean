@@ -37,7 +37,13 @@ def wsSymbol : Parser Char :=
 
 def parseString : Parser LispVal := do
   let _ ← satisfy (· == '"')
-  let s ← many (satisfy (· != '"'))
+  let nonQuote := satisfy (· != '"')
+  let escQuote := do
+    let _ ← pchar '\\'
+    let q ← pchar '"'
+    pure q
+  let innerStr : Parser Char := nonQuote <|> escQuote
+  let s ← many innerStr
   let _ ← satisfy (· == '"')
   pure (LispVal.string (String.mk (s.toList)))
 
