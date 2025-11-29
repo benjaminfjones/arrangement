@@ -1,4 +1,30 @@
+import Std.Internal.Parsec
 import Arrangement
+
+open Std.Internal.Parsec
+open Std.Internal.Parsec.String
+
+/------------------------------------------------------------------------
+ Parsing stuff
+ ------------------------------------------------------------------------/
+
+
+/- Legal Scheme identifier symbols -/
+def isSymbol (c : Char) : Bool :=
+  Option.isSome (("!#$%&|*+-/:<=>?@^_~".toList).find? (· == c))
+def symbol : Parser Char := satisfy isSymbol
+
+/- Run a parser on the input, report on matches -/
+def readExpr : String → String := fun input =>
+  let result := Parser.run symbol input
+  match result with
+  | Except.ok c => s!"Found match: {c}"
+  | Except.error e => s!"No match: {e}"
+
+
+/------------------------------------------------------------------------
+ Main
+ ------------------------------------------------------------------------/
 
 -- CLI greeting
 def mainArgs (args: List String) : IO Unit := do
@@ -38,7 +64,7 @@ def main2Args (args: List String) : IO Unit := do
   return ()
 
 -- sums any number of arguments, reporting unparseable args at the end
-def main (args: List String) : IO Unit := do
+def mainAnyArgs (args: List String) : IO Unit := do
   let stdout <- IO.getStdout
   let f (s : String) (acc : Option Int) : Option Int := do
     let n <- s.toInt?  -- yolo
@@ -50,5 +76,19 @@ def main (args: List String) : IO Unit := do
   | none => stdout.putStrLn s!"Your sum could not be computed! An arg could not be parsed as an Int"
   return ()
 
+/-
+$ lake exe arrangement "!foobar"
+Found match: !
+
+$ lake exe arrangement foobar
+No match: offset 0: condition not satisfied
+-/
+def main (args: List String) : IO Unit := do
+  let stdout ← IO.getStdout
+  if h : 0 < args.length then
+    let input := args[0]'h
+    stdout.putStrLn (readExpr input)
+  else
+    stdout.putStrLn "Usage: lake exe arrangement <text_to_parse>"
 
 
