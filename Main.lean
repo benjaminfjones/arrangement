@@ -27,6 +27,13 @@ def oneOf (cs: String) : Parser Char :=
   satisfy fun c => Option.isSome (cs.toList.find? (· == c))
 def noneOf (cs: String) : Parser Char :=
   satisfy fun c => Option.isNone (cs.toList.find? (· == c))
+def sepBy1 {α β: Type} (p: Parser α) (sep: Parser β) : Parser (List α) := do
+  let first ← p
+  let rest ← many (sep >>= fun _ => p)
+  pure (first :: rest.toList)
+def sepBy {α β: Type} (p: Parser α) (sep: Parser β) : Parser (List α) := do
+  tryCatch (sepBy1 p sep) (fun a => pure a) (fun _ => pure [])
+
 /- Parser a legal Scheme identifier symbol -/
 def symbol : Parser Char := oneOf "!#$%&|*+-/:<=>?@^_~"
 /- Parse one whitespace character -/
@@ -80,6 +87,26 @@ def parseNumber : Parser LispVal := do
   | none => fail "could not parse a number"
 
 def parseExpr : Parser LispVal := parseChar <|> parseAtom <|> parseString <|> parseNumber
+
+def parseList : Parser LispVal := do
+  let _ ← pchar '('
+  let seq ← sepBy parseExpr consumeWs
+  let _ ← pchar ')'
+  pure (LispVal.list seq)
+
+
+
+#guard (Parser.run parseExpr "#\\a").isOk     -- matches char 'a'
+#guard (Parser.run parseExpr "#\\space").isOk -- matches char ' '
+#guard (Parser.run parseExpr "a").isOk        -- matches atom a
+#guard (Parser.run parseExpr "!x").isOk       -- matches atom !x
+#guard (Parser.run parseExpr "6!x").isOk      -- matches number 6
+#guard !(Parser.run parseExpr " 6!x").isOk    -- doesn't match leading ws
+#guard (Parser.run parseExpr "\"foo\"").isOk  -- matches string "foo"
+#guard (Parser.run (sepBy parseExpr consumeWs) "6 7 8").isOk
+#guard (Parser.run parseList "(6 7 8)").isOk
+-- #guard (Parser.run parseList "(  6 7 8 )").isOk  -- not currently parseable
+#guard (Parser.run parseList "()").isOk
 
 /- Run a parser on the input, report on matches -/
 def readExpr : String → String := fun input =>
