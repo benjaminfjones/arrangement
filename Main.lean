@@ -16,7 +16,7 @@ inductive LispVal where
   | string : String → LispVal                      -- "foo"
   | char : Char → LispVal                          -- #\a #\space #\newline
   | bool : Bool → LispVal                          -- true
-
+  deriving Repr
 
 /------------------------------------------------------------------------
  Parsing stuff
@@ -27,17 +27,28 @@ def oneOf (cs: String) : Parser Char :=
   satisfy fun c => Option.isSome (cs.toList.find? (· == c))
 def noneOf (cs: String) : Parser Char :=
   satisfy fun c => Option.isNone (cs.toList.find? (· == c))
+/- Parse one whitespace character -/
+def consumeWs : Parser Char := oneOf " \n▸→"
 def sepBy1 {α β: Type} (p: Parser α) (sep: Parser β) : Parser (List α) := do
   let first ← p
   let rest ← many (sep >>= fun _ => p)
   pure (first :: rest.toList)
 def sepBy {α β: Type} (p: Parser α) (sep: Parser β) : Parser (List α) := do
   tryCatch (sepBy1 p sep) (fun a => pure a) (fun _ => pure [])
+def endBy1 {α β: Type} (p: Parser α) (sep: Parser β) : Parser (List α) := do
+  let first ← p
+  let rest ← tryCatch (many1 consumeWs)
+                      (fun _ => many (do
+                        let r ← p
+                        let _ ← sep
+                        pure r))
+                      (fun _ => pure #[])
+  pure (first :: rest.toList)
+def endBy {α β: Type} (p: Parser α) (sep: Parser β) : Parser (List α) := do
+  tryCatch (endBy1 p sep) (fun a => pure a) (fun _ => pure [])
 
 /- Parser a legal Scheme identifier symbol -/
 def symbol : Parser Char := oneOf "!#$%&|*+-/:<=>?@^_~"
-/- Parse one whitespace character -/
-def consumeWs : Parser Char := oneOf " \n▸→"
 /- Parse any whitespace followed by a symbol -/
 def wsSymbol : Parser Char :=
   many1 consumeWs >>= fun _ => symbol
@@ -94,8 +105,16 @@ def parseList : Parser LispVal := do
   let _ ← pchar ')'
   pure (LispVal.list seq)
 
+def parseDottedList : Parser LispVal := do
+  let _ ← pchar '('
+  let first ← endBy parseExpr consumeWs
+  let _ ← pchar '.'
+  let _ ← many1 consumeWs
+  let rest ← parseExpr
+  pure (LispVal.dottedList first rest)
 
 
+/- Simple parser tests -/
 #guard (Parser.run parseExpr "#\\a").isOk     -- matches char 'a'
 #guard (Parser.run parseExpr "#\\space").isOk -- matches char ' '
 #guard (Parser.run parseExpr "a").isOk        -- matches atom a
@@ -103,10 +122,14 @@ def parseList : Parser LispVal := do
 #guard (Parser.run parseExpr "6!x").isOk      -- matches number 6
 #guard !(Parser.run parseExpr " 6!x").isOk    -- doesn't match leading ws
 #guard (Parser.run parseExpr "\"foo\"").isOk  -- matches string "foo"
-#guard (Parser.run (sepBy parseExpr consumeWs) "6 7 8").isOk
+#guard (Parser.run (sepBy1 parseExpr (many1 consumeWs)) "6 7  8").isOk
+#guard (Parser.run (sepBy parseExpr (many1 consumeWs)) "6  7 8").isOk
+#guard (Parser.run (endBy1 parseExpr (many1 consumeWs)) "6 7 8  ").isOk
 #guard (Parser.run parseList "(6 7 8)").isOk
 -- #guard (Parser.run parseList "(  6 7 8 )").isOk  -- not currently parseable
 #guard (Parser.run parseList "()").isOk
+#guard (Parser.run parseDottedList "(. 9)").isOk
+#guard (Parser.run parseDottedList "(6 7 8 . 9)").isOk
 
 /- Run a parser on the input, report on matches -/
 def readExpr : String → String := fun input =>
