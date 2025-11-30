@@ -97,22 +97,37 @@ def parseNumber : Parser LispVal := do
   | some n => pure (LispVal.number n)
   | none => fail "could not parse a number"
 
-def parseExpr : Parser LispVal := parseChar <|> parseAtom <|> parseString <|> parseNumber
-
-def parseList : Parser LispVal := do
-  let _ ← pchar '('
+mutual
+/- Parse a list w/o parentheses -/
+partial def parseList : Parser LispVal := do
   let seq ← sepBy parseExpr consumeWs
-  let _ ← pchar ')'
   pure (LispVal.list seq)
 
-def parseDottedList : Parser LispVal := do
-  let _ ← pchar '('
+/- Parse a dotted list w/o parentheses -/
+partial def parseDottedList : Parser LispVal := do
   let first ← endBy parseExpr consumeWs
   let _ ← pchar '.'
   let _ ← many1 consumeWs
   let rest ← parseExpr
   pure (LispVal.dottedList first rest)
 
+partial def parseQuoted : Parser LispVal := do
+  let _ ← pchar '\''
+  let e ← parseExpr
+  pure (LispVal.list [LispVal.atom "quote", e])
+
+partial def parseExpr : Parser LispVal :=  parseChar
+                               <|> parseAtom
+                               <|> parseString
+                               <|> parseNumber
+                               <|> parseQuoted
+                               <|> do
+                                   let _ ← pchar '('
+                                   let r ← (attempt parseList) <|> parseDottedList
+                                   let _ ← pchar ')'
+                                   pure r
+
+end
 
 /- Simple parser tests -/
 #guard (Parser.run parseExpr "#\\a").isOk     -- matches char 'a'
@@ -120,16 +135,24 @@ def parseDottedList : Parser LispVal := do
 #guard (Parser.run parseExpr "a").isOk        -- matches atom a
 #guard (Parser.run parseExpr "!x").isOk       -- matches atom !x
 #guard (Parser.run parseExpr "6!x").isOk      -- matches number 6
-#guard !(Parser.run parseExpr " 6!x").isOk    -- doesn't match leading ws
+#guard ¬ (Parser.run parseExpr " 6!x").isOk    -- doesn't match leading ws
 #guard (Parser.run parseExpr "\"foo\"").isOk  -- matches string "foo"
 #guard (Parser.run (sepBy1 parseExpr (many1 consumeWs)) "6 7  8").isOk
 #guard (Parser.run (sepBy parseExpr (many1 consumeWs)) "6  7 8").isOk
 #guard (Parser.run (endBy1 parseExpr (many1 consumeWs)) "6 7 8  ").isOk
-#guard (Parser.run parseList "(6 7 8)").isOk
--- #guard (Parser.run parseList "(  6 7 8 )").isOk  -- not currently parseable
-#guard (Parser.run parseList "()").isOk
-#guard (Parser.run parseDottedList "(. 9)").isOk
-#guard (Parser.run parseDottedList "(6 7 8 . 9)").isOk
+-- #guard (Parser.run parseList "  6 7 8 ").isOk  -- not currently parseable due to whitespace
+#guard (Parser.run parseList "a 9").isOk
+#guard (Parser.run parseDottedList "a . 9").isOk
+#guard (Parser.run parseExpr "(6 7 8)").isOk
+#guard (Parser.run parseExpr "()").isOk  -- Exxcept.ok (LispVal.list [])
+#guard (Parser.run parseExpr "(a . 9)").isOk
+#guard (Parser.run parseExpr "(6 7 8 . 9)").isOk
+
+#guard (Parser.run parseExpr "(a test)").isOk
+#guard (Parser.run parseExpr "(a (nested) test)").isOk
+#guard (Parser.run parseExpr "(a (dotted . list) test)").isOk
+#guard (Parser.run parseExpr "(a '(quoted (dotted . list)) test)").isOk
+#guard ¬ (Parser.run parseExpr "(a '(imbalanced parens)").isOk
 
 /- Run a parser on the input, report on matches -/
 def readExpr : String → String := fun input =>
