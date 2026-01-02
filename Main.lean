@@ -119,11 +119,29 @@ partial def parseDottedList : Parser LispVal := do
   let rest ← parseExpr
   pure (LispVal.dottedList first rest)
 
-/-- `(' foo)` is equivalent to `(quote foo)` -/
+/-- Quote: `'foo` is equivalent to `(quote foo)` -/
 partial def parseQuoted : Parser LispVal := do
   let _ ← pchar '\''
   let e ← parseExpr
   pure (LispVal.list [LispVal.atom "quote", e])
+
+/-- Quasiquote: ``foo` is equivalent to `(quasiquote foo)` -/
+partial def parseQuasiquoted : Parser LispVal := do
+  let _ ← pchar '`'
+  let e ← parseExpr
+  pure (LispVal.list [LispVal.atom "quasiquote", e])
+
+/-- Unquote: `,foo` is equivalent to `(unquote foo)` -/
+partial def parseUnquote : Parser LispVal := do
+  let _ ← pchar ','
+  let e ← parseExpr
+  pure (LispVal.list [LispVal.atom "unquote", e])
+
+/-- Unquote Splicing: `,@foo` is equivalent to `(unquote-splicing foo)` -/
+partial def parseUnquoteSplicing : Parser LispVal := do
+  let _ ← pstring ",@"
+  let e ← parseExpr
+  pure (LispVal.list [LispVal.atom "unquote-splicing", e])
 
 /-- Finally, parse a general Lisp expression -/
 partial def parseExpr : Parser LispVal :=  parseChar
@@ -131,6 +149,9 @@ partial def parseExpr : Parser LispVal :=  parseChar
                                <|> parseString
                                <|> parseNumber
                                <|> parseQuoted
+                               <|> parseQuasiquoted
+                               <|> parseUnquoteSplicing  -- must take precedence over Unquote
+                               <|> parseUnquote
                                <|> do
                                    let _ ← pchar '('
                                    let r ← (attempt parseList) <|> parseDottedList
@@ -143,7 +164,13 @@ end  -- mutual
 -- Parsing tests
 ------------------------------------------------------------------------
 
+def testParseToRepr : String → String := fun s =>
+  match Parser.run parseExpr s with
+  | Except.ok l => reprStr l
+  | Except.error e => panic! s!"could not parse: {e}"
+
 /- Chars -/
+#guard testParseToRepr "#\\a" == "LispVal.char 'a'"
 #guard (Parser.run parseExpr "#\\a").isOk     -- matches char 'a'
 #guard (Parser.run parseExpr "#\\space").isOk -- matches char ' '
 
@@ -170,11 +197,18 @@ end  -- mutual
 #guard (Parser.run parseExpr "(a . 9)").isOk
 #guard (Parser.run parseExpr "(6 7 8 . 9)").isOk
 
+/- Quotation/Quasiquotation -/
+#guard testParseToRepr "'onion" == "LispVal.list [LispVal.atom \"quote\", LispVal.atom \"onion\"]"
+#guard testParseToRepr "`pepper" == "LispVal.list [LispVal.atom \"quasiquote\", LispVal.atom \"pepper\"]"
+#guard testParseToRepr ",chile" == "LispVal.list [LispVal.atom \"unquote\", LispVal.atom \"chile\"]"
+#guard testParseToRepr ",@oil" == "LispVal.list [LispVal.atom \"unquote-splicing\", LispVal.atom \"oil\"]"
+
 /- Larger expressions -/
 #guard (Parser.run parseExpr "(a test)").isOk
 #guard (Parser.run parseExpr "(a (nested) test)").isOk
 #guard (Parser.run parseExpr "(a (dotted . list) test)").isOk
 #guard (Parser.run parseExpr "(a '(quoted (dotted . list)) test)").isOk
+#guard (Parser.run parseExpr "(a `(quasiquoted (dotted . list)) test)").isOk
 #guard ¬ (Parser.run parseExpr "(a '(imbalanced parens)").isOk
 
 
