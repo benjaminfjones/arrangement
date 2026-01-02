@@ -186,7 +186,8 @@ end  -- mutual
 def readExpr : String → String := fun input =>
   let result := Parser.run parseExpr input
   match result with
-  | Except.ok _ => s!"Found value! (can't yet be printed)"
+  | Except.ok l =>
+    "Found value! " ++ reprStr l
   | Except.error e => s!"No match: {e}"
 
 
