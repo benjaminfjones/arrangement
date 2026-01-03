@@ -207,7 +207,7 @@ def readExpr : String → String := fun input =>
   let result := Parser.run parseExpr input
   match result with
   | Except.ok l =>
-    "Found value! " ++ reprStr l
+    s!"Found value! {l}"
   | Except.error e => s!"No match: {e}"
 
 
