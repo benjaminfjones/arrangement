@@ -36,6 +36,9 @@ def eval : LispVal → LispVal
   | val@(.string _) => val
   | val@(.char _) => val
   | val@(.bool _) => val
-  | .list [LispVal.string "quote", val] => val
+  | .list [LispVal.atom "quote", val] => val
+  | .list [LispVal.atom "symbol?", val] => LispVal.bool (symbol? val)
+  | .list [LispVal.atom "string?", val] => LispVal.bool (string? val)
+  | .list [LispVal.atom "number?", val] => LispVal.bool (number? val)
   | .list (LispVal.atom func :: args) => apply func $ args.map eval
   | val => panic! s!"not implemented: eval {val}"
