@@ -203,11 +203,10 @@ def testParseToRepr : String → String := fun s =>
  ------------------------------------------------------------------------/
 
 /- Run a parser on the input, report on matches -/
-def readExpr : String → String := fun input =>
+def readExpr : String → LispVal := fun input =>
   let result := Parser.run parseExpr input
   match result with
-  | Except.ok l =>
-    s!"Found value! {l}"
-  | Except.error e => s!"No match: {e}"
+  | Except.ok l => l
+  | Except.error e => panic! s!"No match: {e}"
 
 

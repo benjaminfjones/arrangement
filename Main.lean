@@ -1,9 +1,10 @@
 import Arrangement.Ast
+import Arrangement.Eval
 import Arrangement.Parser
 
-/------------------------------------------------------------------------
- Main
- ------------------------------------------------------------------------/
+------------------------------------------------------------------------
+-- Main
+------------------------------------------------------------------------
 
 -- CLI greeting; just testing out main and args parsing
 def mainArgs (args: List String) : IO Unit := do
@@ -62,7 +63,8 @@ def main (args: List String) : IO Unit := do
   let stdout ← IO.getStdout
   if h : 0 < args.length then
     let input := args[0]'h
-    stdout.putStrLn (readExpr input)
+    -- REP
+    stdout.putStrLn (toString ∘ eval ∘ readExpr $ input)
   else
     stdout.putStrLn "Usage: lake exe arrangement <text_to_parse>"
 
