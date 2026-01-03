@@ -41,6 +41,8 @@ def eval : LispVal → LispVal
   | .list [LispVal.atom "symbol?", val] => LispVal.bool (symbol? val)
   | .list [LispVal.atom "string?", val] => LispVal.bool (string? val)
   | .list [LispVal.atom "number?", val] => LispVal.bool (number? val)
+  | .list [LispVal.atom "symbol->string", LispVal.atom name] => LispVal.string name
+  | .list [LispVal.atom "string->symbol", LispVal.string name] => LispVal.atom name
   | .list (LispVal.atom func :: args) => apply func $ args.map eval
   | val => panic! s!"not implemented: eval {val}"
 
@@ -56,8 +58,13 @@ def rep : String → String := toString ∘ eval ∘ readExpr
 #guard rep "(/ 2 0)" == "0"  -- div by zero is 0
 #guard rep "(- 1 4)" == "0"  -- Nat subtraction saturates at 0
 #guard rep "(- 15 5 3 2)" == "5"
+#guard rep "(symbol? 6)" == "#f"
+#guard rep "(symbol? horse)" == "#t"
+-- #guard rep "(symbol? 'horse)" == "#t"  -- TODO: doesn't eval yet b/c general lists don't
 #guard rep "(number? 6)" == "#t"
 #guard rep "(number? myNumber)" == "#f"
 #guard rep "(string? \"sdfsd\")" == "#t"
 #guard rep "'(- 15 5 3 2)" == "(- 15 5 3 2)"
 #guard rep "(quote (- 15))" == "(- 15)"
+#guard rep "(string->symbol \"flying-fish\")" == "flying-fish"
+#guard rep "(symbol->string martin)" == "\"martin\""
