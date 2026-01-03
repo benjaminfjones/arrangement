@@ -1,4 +1,5 @@
 import Arrangement.Ast
+import Arrangement.Error
 import Std.Internal.Parsec
 
 open Std.Internal.Parsec
@@ -203,10 +204,10 @@ def testParseToRepr : String → String := fun s =>
  ------------------------------------------------------------------------/
 
 /- Run a parser on the input, report on matches -/
-def readExpr : String → LispVal := fun input =>
+def readExpr : String → ThrowsError LispVal := fun input =>
   let result := Parser.run parseExpr input
   match result with
-  | Except.ok l => l
-  | Except.error e => panic! s!"No match: {e}"
+  | Except.ok l => pure l
+  | Except.error e => throwError (LispError.parser e)
 
 

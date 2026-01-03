@@ -63,8 +63,14 @@ def main (args: List String) : IO Unit := do
   let stdout ← IO.getStdout
   if h : 0 < args.length then
     let input := args[0]'h
+
     -- REP
-    stdout.putStrLn (toString ∘ eval ∘ readExpr $ input)
+    let output := extractValue ∘ trapError $ do
+      let e ← readExpr input
+      let v ← eval e
+      pure ∘ toString $ v
+
+    stdout.putStrLn output
   else
     stdout.putStrLn "Usage: lake exe arrangement <text_to_parse>"
 
