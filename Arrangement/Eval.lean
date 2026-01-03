@@ -78,10 +78,10 @@ def eval : LispVal → ThrowsError LispVal
   | val@(.string _) => pure val
   | val@(.char _) => pure val
   | val@(.bool _) => pure val
-  | .list [LispVal.atom "quote", val] => pure val
-  | .list [LispVal.atom "symbol?", val] => pure $ LispVal.bool (symbol? val)
-  | .list [LispVal.atom "string?", val] => pure $ LispVal.bool (string? val)
-  | .list [LispVal.atom "number?", val] => pure $ LispVal.bool (number? val)
+  | .list [LispVal.atom "quote", val] => pure val  -- don't eval `val`
+  | .list [LispVal.atom "symbol?", val] => eval val >>= pure ∘ LispVal.bool ∘ symbol?
+  | .list [LispVal.atom "string?", val] => eval val >>= pure ∘ LispVal.bool ∘ string?
+  | .list [LispVal.atom "number?", val] => eval val >>= pure ∘ LispVal.bool ∘ number?
   | .list [LispVal.atom "symbol->string", LispVal.atom name]   => pure $ LispVal.string name
   | .list [LispVal.atom "string->symbol", LispVal.string name] => pure $ LispVal.atom name
   | .list (LispVal.atom func :: args) => List.mapM eval args >>= apply func
@@ -104,7 +104,7 @@ def rep : String → String := fun input => extractValue ∘ trapError $ do
 #guard rep "(- 15 5 3 2)" == "5"
 #guard rep "(symbol? 6)" == "#f"
 #guard rep "(symbol? horse)" == "#t"
--- #guard rep "(symbol? 'horse)" == "#t"  -- TODO: doesn't eval yet b/c general lists don't
+#guard rep "(symbol? 'horse)" == "#t"  -- was an eval bug here todo w/ not recursively eval'ing arguments
 #guard rep "(number? 6)" == "#t"
 #guard rep "(number? myNumber)" == "#f"
 #guard rep "(string? \"sdfsd\")" == "#t"
