@@ -4,7 +4,7 @@
 ------------------------------------------------------------------------
 
 inductive LispVal where
-  | atom       : String → LispVal                  -- abc
+  | atom       : String → LispVal                  -- a.k.a. symbols: abc
   | list       : List LispVal → LispVal            -- (a b c)
   | dottedList : List LispVal → LispVal → LispVal  -- (a b . c)
   | number     : Nat → LispVal                     -- 6
@@ -12,6 +12,18 @@ inductive LispVal where
   | char       : Char → LispVal                    -- #\a #\space #\newline
   | bool       : Bool → LispVal                    -- true
   deriving Inhabited, Repr
+
+def symbol? : LispVal → Bool
+  | .atom _ => true
+  | _ => false
+
+def string? : LispVal → Bool
+  | .string _ => true
+  | _ => false
+
+def number? : LispVal → Bool
+  | .number _ => true
+  | _ => false
 
 def unwords : List String → String := fun xs => String.intercalate " " xs
 
