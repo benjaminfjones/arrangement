@@ -1,4 +1,5 @@
 import Arrangement.Ast
+import Arrangement.Parser
 
 open LispVal
 
@@ -42,3 +43,21 @@ def eval : LispVal → LispVal
   | .list [LispVal.atom "number?", val] => LispVal.bool (number? val)
   | .list (LispVal.atom func :: args) => apply func $ args.map eval
   | val => panic! s!"not implemented: eval {val}"
+
+------------------------------------------------------------------------
+-- Tests
+------------------------------------------------------------------------
+
+/-- Read, Eval, Print -/
+def rep : String → String := toString ∘ eval ∘ readExpr
+
+#guard rep "(+ 2 2)" == "4"
+#guard rep "(/ 2 2)" == "1"
+#guard rep "(/ 2 0)" == "0"  -- div by zero is 0
+#guard rep "(- 1 4)" == "0"  -- Nat subtraction saturates at 0
+#guard rep "(- 15 5 3 2)" == "5"
+#guard rep "(number? 6)" == "#t"
+#guard rep "(number? myNumber)" == "#f"
+#guard rep "(string? \"sdfsd\")" == "#t"
+#guard rep "'(- 15 5 3 2)" == "(- 15 5 3 2)"
+#guard rep "(quote (- 15))" == "(- 15)"
