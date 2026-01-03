@@ -84,6 +84,11 @@ def eval : LispVal → ThrowsError LispVal
   | .list [LispVal.atom "number?", val] => eval val >>= pure ∘ LispVal.bool ∘ number?
   | .list [LispVal.atom "symbol->string", LispVal.atom name]   => pure $ LispVal.string name
   | .list [LispVal.atom "string->symbol", LispVal.string name] => pure $ LispVal.atom name
+  | .list [LispVal.atom "if", cond, conseq, alt] => do
+    let result ← eval cond
+    match result with
+    | .bool false => eval alt
+    | _ => eval conseq
   | .list (LispVal.atom func :: args) => List.mapM eval args >>= apply func
   | val => panic! s!"not implemented: eval {val}"
 
@@ -117,6 +122,8 @@ def rep : String → String := fun input => extractValue ∘ trapError $ do
 #guard rep "(>= 3 3)" == "#t"
 #guard rep "(string=? \"test\" \"test\")" == "#t" -- TODO: extra ws breaks this one
 #guard rep "(string<? \"abc\" \"bba\")" == "#t"
+#guard rep "(if (> 2 3) \"no\" \"yes\")" == "\"yes\""
+#guard rep "(if (= 3 3) (+ 2 3 (- 5 1)) \"you thought the type system was reasonable\")" == "9"
 
 -- error handling
 #guard rep "(+ 2 \"two\")" == "Invalid type: expected number, found \"two\""
