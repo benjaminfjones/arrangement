@@ -44,6 +44,32 @@ def numBoolBinop : (Nat → Nat → Bool) → List LispVal → ThrowsError LispV
 def boolBoolBinop : (Bool → Bool → Bool) → List LispVal → ThrowsError LispVal := boolBinop unwrapBool
 def strBoolBinop : (String → String → Bool) → List LispVal → ThrowsError LispVal := boolBinop unwrapStr
 
+def car : List LispVal → ThrowsError LispVal
+  | [.list (x :: _)] => pure x          -- (car '(a b c)) ===> a, .list [] is handled by last case
+  | [.dottedList (x :: _) _] => pure x  -- (car '(a b . c)) ===> a, .dottedList [] _ is last case
+  | [badType] => throwError (LispError.typeMismatch "pair" badType)
+  | badArgsList => throwError (LispError.numArgs 1 badArgsList)
+
+def cdr : List LispVal → ThrowsError LispVal
+  | [.list (_ :: xs)] => pure (.list xs)                  -- (cdr '(a b c)) ===> (b c)
+  | [.dottedList [_] x] => pure x                         -- dotted lists are weird
+  | [.dottedList (_ :: xs) x] => pure (.dottedList xs x)  -- dotted lists are weird
+  | [badType] => throwError (LispError.typeMismatch "pair" badType)
+  | badArgsList => throwError (LispError.numArgs 1 badArgsList)
+
+def cons : List LispVal → ThrowsError LispVal
+  -- (cons x NIL)
+  | [x, .list []] => pure (.list [x])
+  -- (cons x rest)
+  | [x, .list rest] => pure (.list (x :: rest))
+  -- (cons x '(y . z)) ===> (x y . z)
+  -- cons with a dotted list preserves the improper tail
+  | [x, .dottedList xs tl] => pure (.dottedList (x :: xs) tl)
+  -- `x` is anything, even a list itself and `y` is becomes the terminator
+  -- (cons p q) ===> (p . q) when `q` is not a list
+  | [x, y] => pure (.dottedList [x] y)
+  | badArgsList => throwError (LispError.numArgs 2 badArgsList)
+
 def primitives : List (String × (List LispVal -> ThrowsError LispVal)) :=
   [
     ("+", numericBinop (· + ·)),
@@ -52,19 +78,26 @@ def primitives : List (String × (List LispVal -> ThrowsError LispVal)) :=
     ("/", numericBinop (fun x y => Nat.div x y)),
     ("mod", numericBinop (fun x y => Nat.mod x y)),
     -- TODO: remainder?
+    -- Numerical predicates
     ("=", numBoolBinop (· == ·)),
     ("<", numBoolBinop (· < ·)),
     (">", numBoolBinop (· > ·)),
     ("/=", numBoolBinop (· != ·)),
     (">=", numBoolBinop (· >= ·)),
     ("<=", numBoolBinop (· <= ·)),
+    -- Boolean operators
     ("&&", boolBoolBinop (· && ·)),
     ("||", boolBoolBinop (· || ·)),
+    -- String predicates
     ("string=?", strBoolBinop (· == ·)),
     ("string<?", strBoolBinop (· < ·)),
     ("string>?", strBoolBinop (· > ·)),
     ("string<=?", strBoolBinop (· <= ·)),
     ("string>=?", strBoolBinop (· >= ·)),
+    -- List operations
+    ("car", car),
+    ("cdr", cdr),
+    ("cons", cons),
   ]
 
 def apply (func : String) (args : List LispVal) : ThrowsError LispVal :=
@@ -124,6 +157,9 @@ def rep : String → String := fun input => extractValue ∘ trapError $ do
 #guard rep "(string<? \"abc\" \"bba\")" == "#t"
 #guard rep "(if (> 2 3) \"no\" \"yes\")" == "\"yes\""
 #guard rep "(if (= 3 3) (+ 2 3 (- 5 1)) \"you thought the type system was reasonable\")" == "9"
+#guard rep "(cons 2 '(3 4))" == "(2 3 4)"
+#guard rep "(car '(3 4))" == "3"
+#guard rep "(cdr '(3 4))" == "(4)"
 
 -- error handling
 #guard rep "(+ 2 \"two\")" == "Invalid type: expected number, found \"two\""
