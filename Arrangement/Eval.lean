@@ -70,6 +70,25 @@ def cons : List LispVal → ThrowsError LispVal
   | [x, y] => pure (.dottedList [x] y)
   | badArgsList => throwError (LispError.numArgs 2 badArgsList)
 
+-- TODO: eqv: prove termination
+partial def eqv : List LispVal → ThrowsError LispVal
+  | [.atom arg1, .atom arg2] => pure (LispVal.bool (arg1 == arg2))
+  | [.number arg1, .number arg2] => pure (LispVal.bool (arg1 == arg2))
+  | [.string arg1, .string arg2] => pure (LispVal.bool (arg1 == arg2))
+  | [.char arg1, .char arg2] => pure (LispVal.bool (arg1 == arg2))
+  | [.bool arg1, .bool arg2] => pure (LispVal.bool (arg1 == arg2))
+  | [.dottedList xs x, .dottedList ys y] => eqv [LispVal.list (xs ++ [x]), LispVal.list (ys ++ [y])]
+  | [.list arg1, .list arg2] =>
+    let eqvPair : LispVal × LispVal → Bool := fun t =>
+      match eqv [t.fst, t.snd] with
+      | Except.ok (LispVal.bool val) => val
+      | Except.ok _ => false     -- unreachable
+      | Except.error _ => false  -- unreachable
+    pure (LispVal.bool $ arg1.length == arg2.length &&
+                         ((arg1.zip arg2).map eqvPair).all id)
+  | [_, _] => pure (LispVal.bool false)
+  | badArgs => throwError (LispError.numArgs 2 badArgs)
+
 def primitives : List (String × (List LispVal -> ThrowsError LispVal)) :=
   [
     ("+", numericBinop (· + ·)),
@@ -98,6 +117,10 @@ def primitives : List (String × (List LispVal -> ThrowsError LispVal)) :=
     ("car", car),
     ("cdr", cdr),
     ("cons", cons),
+    -- equality and equivalence
+    ("eq?", eqv),
+    ("eqv?", eqv),
+    -- ("equal?", equal),
   ]
 
 def apply (func : String) (args : List LispVal) : ThrowsError LispVal :=
@@ -160,6 +183,13 @@ def rep : String → String := fun input => extractValue ∘ trapError $ do
 #guard rep "(cons 2 '(3 4))" == "(2 3 4)"
 #guard rep "(car '(3 4))" == "3"
 #guard rep "(cdr '(3 4))" == "(4)"
+#guard rep "(eqv? '(1 2) '(1 2))" == "#t"
+#guard rep "(eqv? '(1 2) '(1 23))" == "#f"
+#guard rep "(eqv? '(1) '(1 2))" == "#f"
+#guard rep "(eqv? '(\"1\") '(1))" == "#f"  -- eqv? is not weak typed
+#guard rep "(eqv? '(1 . 2) '(1 . 2))" == "#t"
+#guard rep "(eqv? '(1 3 . 2) '(1 . 2))" == "#f"
+#guard rep "(eqv? '(1 3 . 2) '(1 . 3))" == "#f"
 
 -- error handling
 #guard rep "(+ 2 \"two\")" == "Invalid type: expected number, found \"two\""
