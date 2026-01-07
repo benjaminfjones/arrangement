@@ -135,25 +135,63 @@ def apply (func : String) (args : List LispVal) : ThrowsError LispVal :=
   | none => throwError $ LispError.notFunction "Unrecognized primitive function args" func
   | some f => f args
 
-def eval : LispVal → ThrowsError LispVal
+-- All functions mutual with `eval`
+mutual
+
+/--
+A semantically simple version of `cond`. For the full version, see
+https://conservatory.scheme.org/schemers/Documents/Standards/R5RS/HTML/r5rs-Z-H-7.html#%_sec_4.2.1
+
+(cond <clause₁> <clause₂> ...)
+where
+<clause> := (<test> <expression>), or
+            (else <expression>)
+
+Evaluation of tests proceeds until a #t is encountered, at which point the
+expression is eval'd and returned. The first `else` clause encountered causes
+its expression to be eval'd and returned. If all tests are false and there is
+no else clause, the value is unspecified (here, #f).
+-/
+partial def evalCond (clauses : List LispVal) : ThrowsError LispVal :=
+  if clauses.length > 0 then
+    -- recursive helper that processes clauses, i.e. two-element lists
+    let rec aux (cs : List LispVal) : ThrowsError LispVal := match cs with
+      -- no more clauses
+      | [] => pure (LispVal.bool false)  -- the unspecified value is specified
+      | .list [c, e] :: rest => match c with
+        | LispVal.atom "else" => eval e  -- semantics are that we immediately eval upon an else
+        | t => do
+          let result ← eval t
+          match result with
+          | .bool true => eval e
+          | _ => aux rest
+      | badArgsList => throwError $ LispError.numArgs 2 badArgsList
+    aux clauses
+  else
+    throwError $ LispError.default "`cond` must have at least one clause"
+
+partial def eval : LispVal → ThrowsError LispVal
   | val@(.atom _) => pure val
   | val@(.number _) => pure val
   | val@(.string _) => pure val
   | val@(.char _) => pure val
   | val@(.bool _) => pure val
-  | .list [LispVal.atom "quote", val] => pure val  -- don't eval `val`
-  | .list [LispVal.atom "symbol?", val] => eval val >>= pure ∘ LispVal.bool ∘ symbol?
-  | .list [LispVal.atom "string?", val] => eval val >>= pure ∘ LispVal.bool ∘ string?
-  | .list [LispVal.atom "number?", val] => eval val >>= pure ∘ LispVal.bool ∘ number?
-  | .list [LispVal.atom "symbol->string", LispVal.atom name]   => pure $ LispVal.string name
-  | .list [LispVal.atom "string->symbol", LispVal.string name] => pure $ LispVal.atom name
+  | .list (LispVal.atom "cond" :: clauses) => evalCond clauses
   | .list [LispVal.atom "if", cond, conseq, alt] => do
     let result ← eval cond
     match result with
     | .bool false => eval alt
     | _ => eval conseq
+  | .list [LispVal.atom "number?", val] => eval val >>= pure ∘ LispVal.bool ∘ number?
+  | .list [LispVal.atom "quote", val] => pure val  -- don't eval `val`
+  | .list [LispVal.atom "string->symbol", LispVal.string name] => pure $ LispVal.atom name
+  | .list [LispVal.atom "string?", val] => eval val >>= pure ∘ LispVal.bool ∘ string?
+  | .list [LispVal.atom "symbol->string", LispVal.atom name]   => pure $ LispVal.string name
+  | .list [LispVal.atom "symbol?", val] => eval val >>= pure ∘ LispVal.bool ∘ symbol?
   | .list (LispVal.atom func :: args) => List.mapM eval args >>= apply func
   | val => panic! s!"not implemented: eval {val}"
+
+end  -- mutuals with `eval`
 
 ------------------------------------------------------------------------
 -- Tests
@@ -202,6 +240,10 @@ def rep : String → String := fun input => extractValue ∘ trapError $ do
 #guard rep "(eqv? '(1 . 2) '(1 . 2))" == "#t"
 #guard rep "(eqv? '(1 3 . 2) '(1 . 2))" == "#f"
 #guard rep "(eqv? '(1 3 . 2) '(1 . 3))" == "#f"
+
+#guard rep "(cond ((> 3 2) 'greater) ((< 3 2) 'less))" == "greater"
+#guard rep "(cond ((> 1 1) 'greater) ((< 1 1) 'less))" == "#f"  -- the unspecified value
+#guard rep "(cond ((> 3 3) 'greater) ((< 3 3) 'less) (else 'equal))" == "equal"
 
 -- error handling
 #guard rep "(+ 2 \"two\")" == "Invalid type: expected number, found \"two\""
