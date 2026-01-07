@@ -71,23 +71,30 @@ def cons : List LispVal → ThrowsError LispVal
   | badArgsList => throwError (LispError.numArgs 2 badArgsList)
 
 -- TODO: eqv: prove termination
+mutual
+partial def eqvPair : LispVal → LispVal → Bool := fun x y =>
+  match eqv [x, y] with
+  | Except.ok (LispVal.bool val) => val
+  | Except.ok _ => false     -- unreachable
+  | Except.error _ => false  -- unreachable
+
+partial def eqvPairAll : List LispVal → List LispVal → Bool
+  | [], [] => true
+  | (_x :: _), [] => false
+  | [], (_x :: _) => false
+  | (x :: xs), (y :: ys) => eqvPair x y && eqvPairAll xs ys
+
 partial def eqv : List LispVal → ThrowsError LispVal
   | [.atom arg1, .atom arg2] => pure (LispVal.bool (arg1 == arg2))
   | [.number arg1, .number arg2] => pure (LispVal.bool (arg1 == arg2))
   | [.string arg1, .string arg2] => pure (LispVal.bool (arg1 == arg2))
   | [.char arg1, .char arg2] => pure (LispVal.bool (arg1 == arg2))
   | [.bool arg1, .bool arg2] => pure (LispVal.bool (arg1 == arg2))
-  | [.dottedList xs x, .dottedList ys y] => eqv [LispVal.list (xs ++ [x]), LispVal.list (ys ++ [y])]
-  | [.list arg1, .list arg2] =>
-    let eqvPair : LispVal × LispVal → Bool := fun t =>
-      match eqv [t.fst, t.snd] with
-      | Except.ok (LispVal.bool val) => val
-      | Except.ok _ => false     -- unreachable
-      | Except.error _ => false  -- unreachable
-    pure (LispVal.bool $ arg1.length == arg2.length &&
-                         ((arg1.zip arg2).map eqvPair).all id)
+  | [.dottedList xs x, .dottedList ys y] => pure (LispVal.bool (eqvPairAll (xs ++ [x]) (ys ++ [y])))
+  | [.list arg1, .list arg2] => pure (LispVal.bool (eqvPairAll arg1 arg2))
   | [_, _] => pure (LispVal.bool false)
   | badArgs => throwError (LispError.numArgs 2 badArgs)
+end  -- mutual
 
 def primitives : List (String × (List LispVal -> ThrowsError LispVal)) :=
   [
