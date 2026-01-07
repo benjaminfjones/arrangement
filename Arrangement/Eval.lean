@@ -183,6 +183,11 @@ def rep : String → String := fun input => extractValue ∘ trapError $ do
 #guard rep "(cons 2 '(3 4))" == "(2 3 4)"
 #guard rep "(car '(3 4))" == "3"
 #guard rep "(cdr '(3 4))" == "(4)"
+
+#guard rep "(eqv? 3 3)" == "#t"
+#guard rep "(eqv? 1 3)" == "#f"
+#guard rep "(eqv? 'atom 'atom)" == "#t"
+#guard rep "(eqv? 1 'atom)" == "#f"
 #guard rep "(eqv? '(1 2) '(1 2))" == "#t"
 #guard rep "(eqv? '(1 2) '(1 23))" == "#f"
 #guard rep "(eqv? '(1) '(1 2))" == "#f"
@@ -195,3 +200,4 @@ def rep : String → String := fun input => extractValue ∘ trapError $ do
 #guard rep "(+ 2 \"two\")" == "Invalid type: expected number, found \"two\""
 #guard rep "(+ 2)" == "Expected 2 args; found values 2"
 #guard rep "(what? 2)" == "Unrecognized primitive function args: what?"
+#guard rep "(eqv? 1 'atom 'bomb)" == "Expected 2 args; found values 1 atom bomb"
