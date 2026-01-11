@@ -171,7 +171,6 @@ partial def evalCond (clauses : List LispVal) : ThrowsError LispVal :=
     throwError $ LispError.default "`cond` must have at least one clause"
 
 partial def eval : LispVal → ThrowsError LispVal
-  | val@(.atom _) => pure val
   | val@(.number _) => pure val
   | val@(.string _) => pure val
   | val@(.char _) => pure val
@@ -189,7 +188,7 @@ partial def eval : LispVal → ThrowsError LispVal
   | .list [LispVal.atom "symbol->string", LispVal.atom name]   => pure $ LispVal.string name
   | .list [LispVal.atom "symbol?", val] => eval val >>= pure ∘ LispVal.bool ∘ symbol?
   | .list (LispVal.atom func :: args) => List.mapM eval args >>= apply func
-  | val => panic! s!"not implemented: eval {val}"
+  | badForm => throwError $ LispError.badSpecialForm "Unrecognized special form" badForm
 
 end  -- mutuals with `eval`
 
@@ -209,10 +208,8 @@ def rep : String → String := fun input => extractValue ∘ trapError $ do
 #guard rep "(- 1 4)" == "0"  -- Nat subtraction saturates at 0
 #guard rep "(- 15 5 3 2)" == "5"
 #guard rep "(symbol? 6)" == "#f"
-#guard rep "(symbol? horse)" == "#t"
 #guard rep "(symbol? 'horse)" == "#t"  -- was an eval bug here todo w/ not recursively eval'ing arguments
 #guard rep "(number? 6)" == "#t"
-#guard rep "(number? myNumber)" == "#f"
 #guard rep "(string? \"sdfsd\")" == "#t"
 #guard rep "'(- 15 5 3 2)" == "(- 15 5 3 2)"
 #guard rep "(quote (- 15))" == "(- 15)"
@@ -249,4 +246,6 @@ def rep : String → String := fun input => extractValue ∘ trapError $ do
 #guard rep "(+ 2 \"two\")" == "Invalid type: expected number, found \"two\""
 #guard rep "(+ 2)" == "Expected 2 args; found values 2"
 #guard rep "(what? 2)" == "Unrecognized primitive function args: what?"
+#guard rep "(symbol? horse)" == "Unrecognized special form: horse"
+#guard rep "(number? myNumber)" == "Unrecognized special form: myNumber"
 #guard rep "(eqv? 1 'atom 'bomb)" == "Expected 2 args; found values 1 atom bomb"

@@ -94,7 +94,7 @@ $ lake exe arrangement
 Scheme>>> (+ 2 3)
 5
 Scheme>>> (cons this '())
-(this)                     -- TODO: this should throw `Unrecognized special form: this`
+Unrecognized special form: this
 Scheme>>> (cons 'this '())
 (this)
 Scheme>>> (cons 2 3)
