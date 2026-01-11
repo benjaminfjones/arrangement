@@ -52,26 +52,59 @@ def mainAnyArgs (args: List String) : IO Unit := do
   | some m => stdout.putStrLn s!"Your sum is {m}"
   | none => stdout.putStrLn s!"Your sum could not be computed! An arg could not be parsed as an Int"
 
-/-
-$ lake exe arrangement "!foobar"
-Found match: !
+------------------------------------------------------------------------
+-- Real Main and helper functions
+------------------------------------------------------------------------
 
-$ lake exe arrangement foobar
-No match: offset 0: condition not satisfied
--/
-def main (args: List String) : IO Unit := do
+def flushStr (s : String) : IO Unit := do
   let stdout ← IO.getStdout
-  if h : 0 < args.length then
-    let input := args[0]'h
+  stdout.putStr s
+  stdout.flush
 
-    -- REP
-    let output := extractValue ∘ trapError $ do
-      let e ← readExpr input
+def readPrompt (prompt : String) : IO String := do
+  flushStr prompt
+  let stdin ← IO.getStdin
+  let input ← stdin.getLine
+  pure input.trim
+
+/-- Evaluate an expression and trap errors -/
+def evalString (expr : String) : IO String :=
+    pure $ extractValue ∘ trapError $ do  -- ThrowsError monad
+      let e ← readExpr expr
       let v ← eval e
       pure ∘ toString $ v
 
-    stdout.putStrLn output
+def evalAndPrint (expr : String) : IO Unit := do
+  let stdout ← IO.getStdout
+  evalString expr >>= stdout.putStrLn
+
+/-- Execute a prompt then based on the result perform the action or return -/
+partial def until_ {α : Type} {M : Type → Type} [Monad M] (pred : α → Bool) (prompt : M α) (action : α → M Unit) : M Unit := do
+  let result ← prompt
+  if pred result then
+    pure ()
   else
-    stdout.putStrLn "Usage: lake exe arrangement <text_to_parse>"
+    action result
+    until_ pred prompt action
 
+def runRepl : IO Unit := until_ (· == "quit") (readPrompt "Scheme>>> ") evalAndPrint
 
+/--
+$ lake exe arrangement
+Scheme>>> (+ 2 3)
+5
+Scheme>>> (cons this '())
+(this)                     -- TODO: this should throw `Unrecognized special form: this`
+Scheme>>> (cons 'this '())
+(this)
+Scheme>>> (cons 2 3)
+(2 . 3)
+Scheme>>> quit
+$
+-/
+def main (args: List String) : IO Unit := do
+  let stdout ← IO.getStdout
+  match h : args.length with
+  | 0 => runRepl
+  | 1 => evalAndPrint args[0]  -- automatically proved in bounds by `h` annotation
+  | _ => stdout.putStrLn "Program takes only 0 or 1 argument"
